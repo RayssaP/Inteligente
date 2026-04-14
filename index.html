@@ -303,18 +303,20 @@
 <div class="modal-overlay" id="settings-modal" style="display:none">
   <div class="modal" style="max-width:500px">
     <div class="modal-header">
-      <span class="modal-title">Configurações do Google Drive</span>
+      <span class="modal-title">&#9881; Configurações</span>
       <button class="btn-icon" onclick="closeSettings()">✕</button>
     </div>
     <div class="modal-info">
-      Para integrar com o Drive, você precisa de um <strong>OAuth 2.0 Client ID</strong> do Google Cloud Console.<br><br>
-      1. Acesse <code>console.cloud.google.com</code><br>
-      2. Ative a <strong>Google Drive API</strong><br>
-      3. Em "Credenciais" → "Criar credenciais" → "ID do cliente OAuth 2.0"<br>
-      4. Tipo: <strong>Aplicativo da Web</strong><br>
-      5. Origens JS autorizadas: <code>https://rayssap.github.io</code>
+      <strong>Anthropic API Key</strong> &mdash; necessária para o assistente funcionar.<br>
+      Obtenha em <code>console.anthropic.com</code> &rarr; API Keys. Salva apenas no seu navegador.
     </div>
-    <input id="client-id-input" placeholder="Cole o Client ID aqui (ex: 12345….apps.googleusercontent.com)">
+    <input id="api-key-input" type="password" placeholder="sk-ant-…  (Anthropic API Key)" autocomplete="off">
+    <div class="modal-info" style="margin-top:4px">
+      <strong>Google OAuth Client ID</strong> &mdash; necessário para o Drive.<br>
+      <code>console.cloud.google.com</code> &rarr; Drive API &rarr; Credenciais &rarr; OAuth 2.0 &rarr; Aplicativo da Web.<br>
+      Origem JS: <code>https://rayssap.github.io</code>
+    </div>
+    <input id="client-id-input" placeholder="12345….apps.googleusercontent.com  (OAuth Client ID)">
     <div class="modal-footer">
       <button class="btn" onclick="closeSettings()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveSettings()">Salvar</button>
@@ -458,15 +460,18 @@ function addPasteDoc() {
 
 // ── SETTINGS ──────────────────────────────────────
 function openSettings() {
-  const saved = localStorage.getItem('dossier_client_id') || '';
-  document.getElementById('client-id-input').value = saved;
+  document.getElementById('client-id-input').value = localStorage.getItem('dossier_client_id') || '';
+  document.getElementById('api-key-input').value = localStorage.getItem('dossier_api_key') || '';
   document.getElementById('settings-modal').style.display = 'flex';
 }
 function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 function saveSettings() {
   const id = document.getElementById('client-id-input').value.trim();
+  const key = document.getElementById('api-key-input').value.trim();
   if (id) localStorage.setItem('dossier_client_id', id);
+  if (key) localStorage.setItem('dossier_api_key', key);
   closeSettings();
+  showToast('Configurações salvas');
 }
 
 // ── GOOGLE DRIVE ──────────────────────────────────
@@ -704,11 +709,26 @@ async function sendMessage() {
   document.getElementById('clear-btn').style.display = '';
   loading = true;
 
+  const apiKey = localStorage.getItem('dossier_api_key');
+  if (!apiKey) {
+    removeTypingIndicator('');
+    loading = false;
+    document.getElementById('send-btn').disabled = false;
+    addMessageToUI({ role: 'warn', content: '⚙ Chave de API não configurada. Abra Configurações (⚙ na seção Google Drive) e adicione sua Anthropic API Key.' });
+    openSettings();
+    return;
+  }
+
   const typingId = addTypingIndicator();
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
