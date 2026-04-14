@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOSSIER · Assistente de Documentos GDF</title>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --surface: #f5f5f4; --surface2: #ececea;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18; --text2: #5a5a55; --text3: #9a9a95;
+    --teal: #0f6e56; --teal-bg: #e1f5ee; --teal-border: rgba(15,110,86,0.3);
+    --blue: #0c447c; --blue-bg: #e6f1fb; --blue-border: rgba(12,68,124,0.3);
+    --amber: #854f0b; --amber-bg: #faeeda; --amber-border: rgba(133,79,11,0.3);
+    --pink: #72243e; --pink-bg: #fbeaf0; --pink-border: rgba(114,36,62,0.3);
+    --danger: #a32d2d; --danger-bg: #fcebeb; --danger-border: rgba(163,45,45,0.3);
+    --warn: #854f0b; --warn-bg: #faeeda; --warn-border: rgba(133,79,11,0.3);
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+    --font: -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'SF Mono', 'Cascadia Code', monospace;
+    --sidebar-w: 260px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --surface: #252523; --surface2: #2e2e2b;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.18);
+      --text: #e8e8e3; --text2: #a0a09a; --text3: #606058;
+      --teal: #5dcaa5; --teal-bg: #04342c; --teal-border: rgba(93,202,165,0.25);
+      --blue: #85b7eb; --blue-bg: #042c53; --blue-border: rgba(133,183,235,0.25);
+      --amber: #ef9f27; --amber-bg: #412402; --amber-border: rgba(239,159,39,0.25);
+      --pink: #ed93b1; --pink-bg: #4b1528; --pink-border: rgba(237,147,177,0.25);
+      --danger: #f09595; --danger-bg: #501313; --danger-border: rgba(240,149,149,0.25);
+      --warn: #ef9f27; --warn-bg: #412402; --warn-border: rgba(239,159,39,0.25);
+    }
+  }
+  html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+  #app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* SIDEBAR */
+  #sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: width 0.2s, min-width 0.2s; }
+  #sidebar.closed { width: 0; min-width: 0; }
+  .sidebar-header { padding: 13px 14px 11px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .logo-name { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: var(--text); }
+  .logo-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .sidebar-actions { padding: 9px 10px; border-bottom: 0.5px solid var(--border); display: flex; gap: 5px; flex-shrink: 0; }
+  .sidebar-stats { padding: 5px 14px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; flex-shrink: 0; }
+  .sidebar-stats span { font-size: 11px; color: var(--text3); }
+  .sidebar-stats .active-ct { color: var(--teal); }
+  .doc-list { flex: 1; overflow-y: auto; padding: 7px 8px; }
+  .doc-empty { padding: 2.5rem 1rem; text-align: center; }
+  .doc-empty-icon { font-size: 20px; color: var(--text3); margin-bottom: 8px; }
+  .doc-empty p { font-size: 12px; color: var(--text3); line-height: 1.5; }
+  .doc-card { background: transparent; border: 0.5px solid var(--border); border-radius: var(--r-md); padding: 8px 9px; margin-bottom: 5px; transition: opacity 0.15s, background 0.1s; }
+  .doc-card:hover { background: var(--surface); }
+  .doc-card.inactive { opacity: 0.4; }
+  .doc-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .type-tag { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 3px; letter-spacing: 0.05em; }
+  .type-pdf { background: var(--danger-bg); color: var(--danger); }
+  .type-docx { background: var(--blue-bg); color: var(--blue); }
+  .type-txt { background: var(--surface2); color: var(--text2); }
+  .type-texto { background: var(--teal-bg); color: var(--teal); }
+  .type-gdoc { background: var(--blue-bg); color: var(--blue); }
+  .doc-btns { display: flex; gap: 3px; }
+  .doc-name { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.3; margin-bottom: 2px; word-break: break-word; }
+  .doc-meta { display: flex; justify-content: space-between; align-items: center; }
+  .doc-time { font-size: 10px; color: var(--text3); }
+  .doc-preview { margin-top: 6px; padding-top: 6px; border-top: 0.5px solid var(--border); font-size: 11px; color: var(--text2); line-height: 1.4; max-height: 90px; overflow-y: auto; }
+
+  /* DRIVE SECTION */
+  .drive-section { flex-shrink: 0; border-top: 0.5px solid var(--border); }
+  .drive-header { padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .drive-header:hover { background: var(--surface); }
+  .drive-title { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--text2); }
+  .drive-status { display: flex; align-items: center; gap: 5px; }
+  .drive-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); }
+  .drive-dot.connected { background: var(--teal); }
+  .drive-panel { padding: 6px 10px 10px; display: none; }
+  .drive-panel.open { display: block; }
+  .drive-search { display: flex; gap: 5px; margin-bottom: 6px; }
+  .drive-file-list { max-height: 150px; overflow-y: auto; }
+  .drive-file { padding: 5px 7px; border-radius: var(--r-sm); cursor: pointer; display: flex; align-items: center; gap: 7px; }
+  .drive-file:hover { background: var(--surface); }
+  .drive-file-name { font-size: 12px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drive-file-type { font-size: 10px; color: var(--text3); }
+
+  /* MAIN */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .mode-bar { display: flex; align-items: center; gap: 2px; padding: 7px 12px; border-bottom: 0.5px solid var(--border); flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; }
+  .mode-btn { padding: 5px 11px; font-size: 12px; border-radius: var(--r-md); cursor: pointer; border: 0.5px solid transparent; background: none; color: var(--text2); font-family: var(--font); transition: all 0.12s; white-space: nowrap; }
+  .mode-btn:hover { background: var(--surface); }
+  .mode-btn.consulta.active { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); font-weight: 500; }
+  .mode-btn.redacao.active { background: var(--teal-bg); color: var(--teal); border-color: var(--teal-border); font-weight: 500; }
+  .mode-btn.analise.active { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); font-weight: 500; }
+  .mode-btn.proposta.active { background: var(--pink-bg); color: var(--pink); border-color: var(--pink-border); font-weight: 500; }
+  .mode-bar-right { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .msg-area { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  .welcome { padding: 3rem 2rem; max-width: 540px; margin: 0 auto; }
+  .welcome-title { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .welcome-desc { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 1.5rem; }
+  .welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .welcome-card { padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--r-lg); cursor: pointer; transition: all 0.12s; }
+  .welcome-card:hover { background: var(--surface); }
+  .welcome-card-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .welcome-card-desc { font-size: 11px; color: var(--text3); line-height: 1.4; }
+  .msg-row { padding: 11px 14px; border-bottom: 0.5px solid var(--border); }
+  .msg-inner { max-width: 680px; margin: 0 auto; }
+  .msg-label { margin-bottom: 5px; }
+  .msg-tag { font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.04em; }
+  .msg-tag.consulta { background: var(--blue-bg); color: var(--blue); border: 0.5px solid var(--blue-border); }
+  .msg-tag.redacao { background: var(--teal-bg); color: var(--teal); border: 0.5px solid var(--teal-border); }
+  .msg-tag.analise { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+  .msg-tag.proposta { background: var(--pink-bg); color: var(--pink); border: 0.5px solid var(--pink-border); }
+  .user-bubble { font-size: 14px; line-height: 1.6; background: var(--surface); padding: 9px 13px; border-radius: var(--r-lg); border: 0.5px solid var(--border); }
+  .assistant-header { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .assistant-name { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--text3); }
+  .assistant-body { font-size: 14px; line-height: 1.75; color: var(--text); }
+  .assistant-body p { margin: 0.5rem 0; }
+  .assistant-body h2 { font-size: 15px; font-weight: 500; margin: 1.2rem 0 0.4rem; }
+  .assistant-body h3 { font-size: 14px; font-weight: 500; margin: 1rem 0 0.3rem; }
+  .assistant-body h4 { font-size: 13px; font-weight: 500; margin: 0.8rem 0 0.2rem; }
+  .assistant-body ul, .assistant-body ol { padding-left: 1.3rem; margin: 0.4rem 0; }
+  .assistant-body li { margin: 0.2rem 0; }
+  .assistant-body code { font-family: var(--mono); font-size: 12px; background: var(--surface2); padding: 1px 5px; border-radius: 3px; }
+  .assistant-body hr { border: none; border-top: 0.5px solid var(--border); margin: 0.8rem 0; }
+  .assistant-body strong { font-weight: 600; }
+  .save-drive-btn { margin-top: 8px; font-size: 11px; color: var(--text3); background: none; border: 0.5px solid var(--border); border-radius: var(--r-sm); padding: 3px 9px; cursor: pointer; font-family: var(--font); transition: all 0.1s; }
+  .save-drive-btn:hover { background: var(--teal-bg); color: var(--teal); border-color: var(--teal-border); }
+  .msg-warn { padding: 8px 12px; background: var(--warn-bg); border: 0.5px solid var(--warn-border); border-radius: var(--r-md); font-size: 13px; color: var(--warn); }
+  .msg-error { padding: 8px 12px; background: var(--danger-bg); border: 0.5px solid var(--danger-border); border-radius: var(--r-md); font-size: 13px; color: var(--danger); }
+  .typing { display: flex; gap: 5px; align-items: center; }
+  @keyframes pulse { 0%,100%{opacity:.2} 50%{opacity:1} }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: pulse 1.4s ease-in-out infinite; display: inline-block; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  .typing-label { font-size: 12px; color: var(--text3); margin-left: 4px; }
+  .input-area { padding: 9px 14px; border-top: 0.5px solid var(--border); flex-shrink: 0; }
+  .input-row { max-width: 680px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+  textarea { flex: 1; padding: 8px 11px; font-size: 13px; background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--r-lg); color: var(--text); outline: none; font-family: var(--font); line-height: 1.5; min-height: 36px; max-height: 180px; resize: none; transition: border-color 0.12s; }
+  textarea:focus { border-color: var(--blue-border); }
+  textarea::placeholder { color: var(--text3); }
+  .input-hint { max-width: 680px; margin: 4px auto 0; font-size: 11px; color: var(--text3); }
+
+  /* BUTTONS */
+  button { font-family: var(--font); cursor: pointer; }
+  .btn { padding: 6px 12px; font-size: 12px; border-radius: var(--r-md); border: 0.5px solid var(--border2); background: var(--surface); color: var(--text); transition: all 0.1s; }
+  .btn:hover { background: var(--surface2); }
+  .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-icon { background: none; border: none; padding: 4px 6px; border-radius: var(--r-sm); color: var(--text3); font-size: 13px; transition: background 0.1s; }
+  .btn-icon:hover { background: var(--surface); }
+  .send-btn { padding: 8px 13px; font-size: 14px; font-weight: 500; background: var(--text); color: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--r-lg); cursor: pointer; flex-shrink: 0; height: 36px; transition: all 0.12s; }
+  .send-btn:hover:not(:disabled) { opacity: 0.8; }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--r-lg); padding: 1.2rem; width: 480px; max-width: 92vw; display: flex; flex-direction: column; gap: 10px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-title { font-size: 14px; font-weight: 500; }
+  .modal input, .modal textarea { width: 100%; padding: 7px 10px; font-size: 13px; border: 0.5px solid var(--border2); border-radius: var(--r-md); background: var(--surface); color: var(--text); font-family: var(--font); outline: none; }
+  .modal input:focus, .modal textarea:focus { border-color: var(--blue-border); }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-info { font-size: 12px; color: var(--text2); background: var(--surface); padding: 8px 10px; border-radius: var(--r-md); line-height: 1.5; }
+  .modal-info code { font-family: var(--mono); font-size: 11px; background: var(--surface2); padding: 1px 4px; border-radius: 3px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div>
+        <div class="logo-name">DOSSIER</div>
+        <div class="logo-sub">Assistente de documentos · GDF</div>
+      </div>
+      <button class="btn-icon" onclick="toggleSidebar()">✕</button>
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="btn btn-primary" style="flex:1;padding:6px 0" onclick="document.getElementById('file-input').click()">+ Upload</button>
+      <button class="btn" style="flex:1;padding:6px 0" onclick="openPasteModal()">Colar texto</button>
+      <input id="file-input" type="file" accept=".pdf,.docx,.txt" style="display:none" onchange="handleFileUpload(event)">
+    </div>
+
+    <div class="sidebar-stats">
+      <span id="doc-count">0 documentos</span>
+      <span class="active-ct" id="active-count">0 ativos</span>
+    </div>
+
+    <div class="doc-list" id="doc-list">
+      <div class="doc-empty" id="doc-empty">
+        <div class="doc-empty-icon">◫</div>
+        <p>Adicione PDFs, DOCXs ou textos para começar.</p>
+      </div>
+    </div>
+
+    <!-- DRIVE SECTION -->
+    <div class="drive-section">
+      <div class="drive-header" onclick="toggleDrivePanel()">
+        <span class="drive-title">GOOGLE DRIVE</span>
+        <div class="drive-status">
+          <div class="drive-dot" id="drive-dot"></div>
+          <span id="drive-status-text" style="font-size:11px;color:var(--text3)">Desconectado</span>
+          <span style="font-size:11px;color:var(--text3)">▾</span>
+        </div>
+      </div>
+      <div class="drive-panel" id="drive-panel">
+        <div id="drive-connect-area">
+          <p style="font-size:11px;color:var(--text2);margin-bottom:7px;line-height:1.4">Conecte para carregar documentos do Drive, salvar análises e sincronizar sua biblioteca.</p>
+          <button class="btn btn-primary" style="width:100%;margin-bottom:5px" onclick="connectDrive()">Conectar Google Drive</button>
+          <button class="btn" style="width:100%;font-size:11px" onclick="openSettings()">⚙ Configurar Client ID</button>
+        </div>
+        <div id="drive-connected-area" style="display:none">
+          <div class="drive-search">
+            <input id="drive-search-input" placeholder="Buscar arquivos…" style="flex:1;padding:5px 8px;font-size:12px;border:0.5px solid var(--border2);border-radius:var(--r-sm);background:var(--surface);color:var(--text);outline:none;font-family:var(--font)">
+            <button class="btn" style="padding:5px 9px;font-size:12px" onclick="searchDriveFiles()">Buscar</button>
+          </div>
+          <div class="drive-file-list" id="drive-file-list"></div>
+          <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">
+            <button class="btn" style="font-size:11px;flex:1" onclick="syncLibrary()">↑ Salvar biblioteca</button>
+            <button class="btn" style="font-size:11px;flex:1" onclick="loadLibrary()">↓ Carregar biblioteca</button>
+          </div>
+          <button class="btn" style="width:100%;font-size:11px;margin-top:5px;color:var(--text3)" onclick="disconnectDrive()">Desconectar</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+    <div class="mode-bar">
+      <button class="mode-btn consulta active" onclick="setMode('consulta')">Consultar</button>
+      <button class="mode-btn redacao" onclick="setMode('redacao')">Redigir</button>
+      <button class="mode-btn analise" onclick="setMode('analise')">Analisar</button>
+      <button class="mode-btn proposta" onclick="setMode('proposta')">Proposta</button>
+      <div class="mode-bar-right">
+        <span id="active-badge" style="display:none;font-size:11px;color:var(--text3);padding:3px 8px;background:var(--surface);border-radius:var(--r-md);border:0.5px solid var(--border)"></span>
+        <button class="btn" style="font-size:11px;display:none" id="clear-btn" onclick="clearMessages()">Limpar</button>
+        <button class="btn-icon" id="sidebar-toggle-btn" onclick="toggleSidebar()" style="display:none;font-size:14px">☰</button>
+      </div>
+    </div>
+
+    <div class="msg-area" id="msg-area">
+      <div class="welcome" id="welcome">
+        <div class="welcome-title">Pronto para trabalhar</div>
+        <div class="welcome-desc">Carregue documentos na barra lateral — contratos, normativos, decretos, despachos — e escolha um modo de trabalho.</div>
+        <div class="welcome-grid">
+          <div class="welcome-card" onclick="setMode('consulta')">
+            <div class="welcome-card-title" style="color:var(--blue)">Consultar</div>
+            <div class="welcome-card-desc">Extraia informações precisas com citação de trechos</div>
+          </div>
+          <div class="welcome-card" onclick="setMode('redacao')">
+            <div class="welcome-card-title" style="color:var(--teal)">Redigir</div>
+            <div class="welcome-card-desc">Redija decretos, despachos e normativos</div>
+          </div>
+          <div class="welcome-card" onclick="setMode('analise')">
+            <div class="welcome-card-title" style="color:var(--amber)">Analisar</div>
+            <div class="welcome-card-desc">Análise robusta com riscos e inconsistências</div>
+          </div>
+          <div class="welcome-card" onclick="setMode('proposta')">
+            <div class="welcome-card-title" style="color:var(--pink)">Proposta</div>
+            <div class="welcome-card-desc">Elabore propostas fundamentadas nos documentos</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="query-input" rows="1" placeholder="Consultar… (Enter envia · Shift+Enter quebra linha)" onkeydown="handleKey(event)" oninput="resizeTextarea(this)"></textarea>
+        <button class="send-btn" onclick="sendMessage()" id="send-btn" disabled>→</button>
+      </div>
+      <div class="input-hint" id="input-hint">Modo: Consultar · 0 documentos ativos</div>
+    </div>
+  </main>
+</div>
+
+<!-- PASTE MODAL -->
+<div class="modal-overlay" id="paste-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Adicionar documento de texto</span>
+      <button class="btn-icon" onclick="closePasteModal()">✕</button>
+    </div>
+    <input id="paste-name" placeholder="Nome do documento (ex: Contrato_SETIC_2024)">
+    <textarea id="paste-text" rows="11" placeholder="Cole o texto aqui…"></textarea>
+    <div class="modal-footer">
+      <button class="btn" onclick="closePasteModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="addPasteDoc()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <span class="modal-title">Configurações do Google Drive</span>
+      <button class="btn-icon" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-info">
+      Para integrar com o Drive, você precisa de um <strong>OAuth 2.0 Client ID</strong> do Google Cloud Console.<br><br>
+      1. Acesse <code>console.cloud.google.com</code><br>
+      2. Ative a <strong>Google Drive API</strong><br>
+      3. Em "Credenciais" → "Criar credenciais" → "ID do cliente OAuth 2.0"<br>
+      4. Tipo: <strong>Aplicativo da Web</strong><br>
+      5. Origens JS autorizadas: <code>https://rayssap.github.io</code>
+    </div>
+    <input id="client-id-input" placeholder="Cole o Client ID aqui (ex: 12345….apps.googleusercontent.com)">
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSettings()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────
+const MODES = {
+  consulta: { label: 'Consultar', prefix: 'Consulte os documentos carregados e responda com precisão, citando trechos relevantes: ' },
+  redacao:  { label: 'Redigir',   prefix: 'Com base nos documentos carregados, redija ou reescreva conforme solicitado, mantendo linguagem jurídico-administrativa do GDF: ' },
+  analise:  { label: 'Analisar',  prefix: 'Realize uma análise robusta e estruturada, identificando riscos, inconsistências e pontos de atenção sobre: ' },
+  proposta: { label: 'Proposta',  prefix: 'Elabore uma proposta detalhada, estruturada e fundamentada nos contratos e normativos carregados sobre: ' },
+};
+
+const SYSTEM = `Você é um assistente especializado em análise e redação de documentos governamentais do Governo do Distrito Federal (GDF), vinculado à Unidade de Transformação Digital (UTD) da SETIC/SEEC.
+
+CAPACIDADES:
+- Consultar e extrair informações precisas de contratos, normativos e documentos administrativos
+- Redigir e reescrever decretos, despachos, portarias, termos de referência e normativos com linguagem jurídico-administrativa
+- Realizar análises robustas identificando riscos, inconsistências e cláusulas relevantes
+- Elaborar propostas e pareceres fundamentados nos documentos carregados
+
+REGRAS:
+1. SEMPRE baseie suas respostas nos documentos fornecidos
+2. Ao consultar: cite explicitamente o documento e o trecho ou cláusula
+3. Ao redigir: mantenha estilo normativo (CONSIDERANDO, RESOLVE, Art., §, etc.)
+4. Ao analisar: seções claras, riscos numerados, inconsistências destacadas
+5. Se a informação não constar nos documentos, informe claramente
+6. Use **negrito** para termos-chave, listas para itens múltiplos`;
+
+let docs = [];
+let messages = [];
+let currentMode = 'consulta';
+let loading = false;
+let driveToken = null;
+let driveManifestFileId = null;
+let sidebarOpen = true;
+
+// ── SIDEBAR ───────────────────────────────────────
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('closed', !sidebarOpen);
+  document.getElementById('sidebar-toggle-btn').style.display = sidebarOpen ? 'none' : '';
+}
+
+// ── DOCUMENTS ─────────────────────────────────────
+function addDoc(name, content, type, mediaType = null) {
+  const doc = {
+    id: Date.now() + '_' + Math.random().toString(36).slice(2),
+    name, content, type, mediaType, active: true,
+    addedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+  };
+  docs.push(doc);
+  renderDocs();
+  updateStats();
+}
+
+function toggleDoc(id) {
+  const doc = docs.find(d => d.id === id);
+  if (doc) { doc.active = !doc.active; renderDocs(); updateStats(); }
+}
+
+function removeDoc(id) {
+  docs = docs.filter(d => d.id !== id);
+  renderDocs(); updateStats();
+}
+
+function expandDoc(id) {
+  const el = document.getElementById('preview_' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderDocs() {
+  const list = document.getElementById('doc-list');
+  const empty = document.getElementById('doc-empty');
+  if (docs.length === 0) { empty.style.display = ''; list.innerHTML = ''; list.appendChild(empty); return; }
+  empty.style.display = 'none';
+  list.innerHTML = docs.map(doc => `
+    <div class="doc-card ${doc.active ? '' : 'inactive'}">
+      <div class="doc-card-top">
+        <span class="type-tag type-${doc.type}">${doc.type.toUpperCase()}</span>
+        <div class="doc-btns">
+          <button class="btn-icon" onclick="toggleDoc('${doc.id}')" title="${doc.active ? 'Desativar' : 'Ativar'}" style="color:${doc.active ? 'var(--teal)' : 'var(--text3)'}">${doc.active ? '●' : '○'}</button>
+          <button class="btn-icon" onclick="removeDoc('${doc.id}')">✕</button>
+        </div>
+      </div>
+      <div class="doc-name">${doc.name}</div>
+      <div class="doc-meta">
+        <span class="doc-time">${doc.addedAt}</span>
+        ${doc.type !== 'pdf' ? `<button class="btn-icon" style="font-size:10px;padding:0" onclick="expandDoc('${doc.id}')">▼</button>` : ''}
+      </div>
+      ${doc.type !== 'pdf' ? `<div class="doc-preview" id="preview_${doc.id}" style="display:none">${doc.content.slice(0, 400)}${doc.content.length > 400 ? '…' : ''}</div>` : ''}
+    </div>
+  `).join('');
+  list.appendChild(empty);
+}
+
+function updateStats() {
+  const active = docs.filter(d => d.active).length;
+  document.getElementById('doc-count').textContent = `${docs.length} documento${docs.length !== 1 ? 's' : ''}`;
+  document.getElementById('active-count').textContent = `${active} ativo${active !== 1 ? 's' : ''}`;
+  const badge = document.getElementById('active-badge');
+  badge.textContent = `${active} doc${active > 1 ? 's' : ''}`;
+  badge.style.display = active > 0 ? '' : 'none';
+  updateInputHint();
+}
+
+// ── FILE UPLOAD ───────────────────────────────────
+async function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  try {
+    if (ext === 'pdf') {
+      const reader = new FileReader();
+      reader.onload = () => addDoc(file.name, reader.result.split(',')[1], 'pdf', 'application/pdf');
+      reader.readAsDataURL(file);
+    } else if (ext === 'docx') {
+      const buf = await file.arrayBuffer();
+      const res = await mammoth.extractRawText({ arrayBuffer: buf });
+      addDoc(file.name, res.value, 'docx');
+    } else if (ext === 'txt') {
+      addDoc(file.name, await file.text(), 'txt');
+    } else { alert('Formato não suportado. Use PDF, DOCX ou TXT.'); }
+  } catch(err) { alert('Erro ao processar: ' + err.message); }
+  e.target.value = '';
+}
+
+// ── PASTE MODAL ───────────────────────────────────
+function openPasteModal() { document.getElementById('paste-modal').style.display = 'flex'; document.getElementById('paste-name').focus(); }
+function closePasteModal() { document.getElementById('paste-modal').style.display = 'none'; document.getElementById('paste-name').value = ''; document.getElementById('paste-text').value = ''; }
+function addPasteDoc() {
+  const name = document.getElementById('paste-name').value.trim();
+  const text = document.getElementById('paste-text').value.trim();
+  if (!name || !text) return;
+  addDoc(name, text, 'texto');
+  closePasteModal();
+}
+
+// ── SETTINGS ──────────────────────────────────────
+function openSettings() {
+  const saved = localStorage.getItem('dossier_client_id') || '';
+  document.getElementById('client-id-input').value = saved;
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
+function saveSettings() {
+  const id = document.getElementById('client-id-input').value.trim();
+  if (id) localStorage.setItem('dossier_client_id', id);
+  closeSettings();
+}
+
+// ── GOOGLE DRIVE ──────────────────────────────────
+function toggleDrivePanel() {
+  const panel = document.getElementById('drive-panel');
+  panel.classList.toggle('open');
+}
+
+function connectDrive() {
+  const clientId = localStorage.getItem('dossier_client_id');
+  if (!clientId) { openSettings(); return; }
+  if (typeof google === 'undefined') { alert('Google Identity Services não carregou. Verifique sua conexão.'); return; }
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',
+    callback: async (response) => {
+      if (response.error) { alert('Erro ao autenticar: ' + response.error); return; }
+      driveToken = response.access_token;
+      setDriveConnected(true);
+      await listRecentDriveFiles();
+      await loadLibrary();
+    }
+  });
+  client.requestAccessToken();
+}
+
+function setDriveConnected(connected) {
+  document.getElementById('drive-dot').classList.toggle('connected', connected);
+  document.getElementById('drive-status-text').textContent = connected ? 'Conectado' : 'Desconectado';
+  document.getElementById('drive-connect-area').style.display = connected ? 'none' : '';
+  document.getElementById('drive-connected-area').style.display = connected ? '' : 'none';
+}
+
+function disconnectDrive() {
+  driveToken = null; driveManifestFileId = null;
+  setDriveConnected(false);
+  document.getElementById('drive-file-list').innerHTML = '';
+}
+
+async function listRecentDriveFiles(query = '') {
+  if (!driveToken) return;
+  const q = query
+    ? `name contains '${query}' and trashed = false`
+    : `(mimeType = 'application/pdf' or mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or mimeType = 'text/plain' or mimeType = 'application/vnd.google-apps.document') and trashed = false`;
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime desc&pageSize=20&fields=files(id,name,mimeType,modifiedTime)`, {
+      headers: { Authorization: `Bearer ${driveToken}` }
+    });
+    const data = await res.json();
+    renderDriveFiles(data.files || []);
+  } catch(err) { console.error('Drive list error:', err); }
+}
+
+function searchDriveFiles() {
+  const q = document.getElementById('drive-search-input').value.trim();
+  listRecentDriveFiles(q);
+}
+
+function renderDriveFiles(files) {
+  const list = document.getElementById('drive-file-list');
+  if (!files.length) { list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:5px 7px">Nenhum arquivo encontrado</div>'; return; }
+  list.innerHTML = files.map(f => {
+    const type = f.mimeType.includes('pdf') ? 'PDF' : f.mimeType.includes('document') ? 'DOCX' : f.mimeType.includes('google-apps.document') ? 'GDOC' : 'TXT';
+    return `<div class="drive-file" onclick="loadDriveFile('${f.id}','${encodeURIComponent(f.name)}','${f.mimeType}')">
+      <span class="type-tag type-${type.toLowerCase()}">${type}</span>
+      <span class="drive-file-name">${f.name}</span>
+    </div>`;
+  }).join('');
+}
+
+async function loadDriveFile(fileId, encodedName, mimeType) {
+  if (!driveToken) return;
+  const name = decodeURIComponent(encodedName);
+  try {
+    let content, type, mediaType = null;
+    if (mimeType === 'application/vnd.google-apps.document') {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`, { headers: { Authorization: `Bearer ${driveToken}` } });
+      content = await res.text();
+      type = 'gdoc';
+    } else if (mimeType === 'application/pdf') {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: `Bearer ${driveToken}` } });
+      const blob = await res.blob();
+      const base64 = await new Promise(resolve => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.readAsDataURL(blob); });
+      content = base64; type = 'pdf'; mediaType = 'application/pdf';
+    } else if (mimeType.includes('wordprocessingml')) {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: `Bearer ${driveToken}` } });
+      const buf = await (await res.blob()).arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      content = result.value; type = 'docx';
+    } else {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: `Bearer ${driveToken}` } });
+      content = await res.text(); type = 'txt';
+    }
+    addDoc(name, content, type, mediaType);
+  } catch(err) { alert('Erro ao carregar arquivo: ' + err.message); }
+}
+
+// ── LIBRARY SYNC ──────────────────────────────────
+async function syncLibrary() {
+  if (!driveToken) { alert('Conecte o Google Drive primeiro.'); return; }
+  const textDocs = docs.filter(d => d.type !== 'pdf');
+  const manifest = textDocs.map(d => ({ name: d.name, content: d.content, type: d.type, active: d.active }));
+  const content = JSON.stringify(manifest, null, 2);
+  try {
+    if (driveManifestFileId) {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveManifestFileId}?uploadType=media`, {
+        method: 'PATCH', headers: { Authorization: `Bearer ${driveToken}`, 'Content-Type': 'application/json' }, body: content
+      });
+    } else {
+      const meta = { name: 'dossier_library.json', mimeType: 'application/json' };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+      form.append('file', new Blob([content], { type: 'application/json' }));
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST', headers: { Authorization: `Bearer ${driveToken}` }, body: form
+      });
+      const data = await res.json();
+      driveManifestFileId = data.id;
+    }
+    showToast(`Biblioteca salva (${textDocs.length} doc${textDocs.length !== 1 ? 's' : ''})`);
+  } catch(err) { alert('Erro ao salvar biblioteca: ' + err.message); }
+}
+
+async function loadLibrary() {
+  if (!driveToken) return;
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='dossier_library.json' and trashed=false&fields=files(id,name)`, {
+      headers: { Authorization: `Bearer ${driveToken}` }
+    });
+    const data = await res.json();
+    if (!data.files || !data.files.length) return;
+    driveManifestFileId = data.files[0].id;
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${driveManifestFileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${driveToken}` }
+    });
+    const manifest = await fileRes.json();
+    manifest.forEach(d => addDoc(d.name, d.content, d.type));
+    showToast(`Biblioteca carregada (${manifest.length} doc${manifest.length !== 1 ? 's' : ''})`);
+  } catch(err) { console.error('Load library error:', err); }
+}
+
+async function saveToDrive(content, suggestedName) {
+  if (!driveToken) { alert('Conecte o Google Drive para salvar análises.'); return; }
+  const filename = `dossier_${new Date().toISOString().slice(0,10)}_${suggestedName}.txt`;
+  try {
+    const meta = { name: filename, mimeType: 'text/plain' };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    form.append('file', new Blob([content], { type: 'text/plain' }));
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST', headers: { Authorization: `Bearer ${driveToken}` }, body: form
+    });
+    showToast(`Salvo como "${filename}"`);
+  } catch(err) { alert('Erro ao salvar no Drive: ' + err.message); }
+}
+
+// ── TOAST ─────────────────────────────────────────
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:var(--text);color:var(--bg);padding:8px 14px;border-radius:var(--r-md);font-size:12px;z-index:200;opacity:0;transition:opacity 0.2s';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
+// ── MODES ─────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.classList.contains(mode)) btn.classList.add('active');
+  });
+  const input = document.getElementById('query-input');
+  input.placeholder = `${MODES[mode].label}… (Enter envia · Shift+Enter quebra linha)`;
+  updateInputHint();
+}
+
+function updateInputHint() {
+  const active = docs.filter(d => d.active).length;
+  document.getElementById('input-hint').textContent = `Modo: ${MODES[currentMode].label} · ${active} documento${active !== 1 ? 's' : ''} ativo${active !== 1 ? 's' : ''}`;
+}
+
+// ── CHAT ──────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function resizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+  document.getElementById('send-btn').disabled = !el.value.trim() || loading;
+}
+
+function buildSystem() {
+  const textDocs = docs.filter(d => d.active && d.type !== 'pdf');
+  if (!textDocs.length) return SYSTEM;
+  const body = textDocs.map(d => `\n\n══ DOCUMENTO: ${d.name} ══\n${d.content}\n══ FIM: ${d.name} ══`).join('');
+  return SYSTEM + '\n\nDOCUMENTOS CARREGADOS:' + body;
+}
+
+function buildUserContent(q) {
+  const blocks = [];
+  docs.filter(d => d.active && d.type === 'pdf').forEach(doc => {
+    blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: doc.content }, title: doc.name });
+  });
+  blocks.push({ type: 'text', text: MODES[currentMode].prefix + q });
+  return blocks;
+}
+
+function buildHistory() {
+  return messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-6).map(m => ({
+    role: m.role,
+    content: m.role === 'user' ? [{ type: 'text', text: m.content }] : m.content,
+  }));
+}
+
+async function sendMessage() {
+  const input = document.getElementById('query-input');
+  const q = input.value.trim();
+  if (!q || loading) return;
+  const active = docs.filter(d => d.active);
+  if (!active.length) { addMessageToUI({ role: 'warn', content: 'Nenhum documento ativo. Adicione e ative pelo menos um documento.' }); return; }
+
+  const userMsg = { role: 'user', content: q, mode: currentMode };
+  messages.push(userMsg);
+  addMessageToUI(userMsg);
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('clear-btn').style.display = '';
+  loading = true;
+
+  const typingId = addTypingIndicator();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: buildSystem(),
+        messages: [...buildHistory(), { role: 'user', content: buildUserContent(q) }],
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const assistantMsg = { role: 'assistant', content: text, mode: currentMode };
+    messages.push(assistantMsg);
+    removeTypingIndicator(typingId);
+    addMessageToUI(assistantMsg);
+  } catch(err) {
+    removeTypingIndicator(typingId);
+    addMessageToUI({ role: 'error', content: 'Erro: ' + err.message });
+  } finally {
+    loading = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+function addMessageToUI(msg) {
+  const area = document.getElementById('msg-area');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  if (msg.role === 'user') {
+    row.innerHTML = `<div class="msg-inner"><div class="msg-label"><span class="msg-tag ${msg.mode}">${MODES[msg.mode]?.label || ''}</span></div><div class="user-bubble">${escHtml(msg.content)}</div></div>`;
+  } else if (msg.role === 'assistant') {
+    const modeLabel = MODES[msg.mode]?.label || '';
+    row.innerHTML = `<div class="msg-inner">
+      <div class="assistant-header">
+        <span class="assistant-name">DOSSIER</span>
+        <span class="msg-tag ${msg.mode}">${modeLabel}</span>
+      </div>
+      <div class="assistant-body">${renderMd(msg.content)}</div>
+      <button class="save-drive-btn" onclick="saveToDrive(${JSON.stringify(msg.content).replace(/"/g,'&quot;')}, '${msg.mode}')">↑ Salvar no Drive</button>
+    </div>`;
+  } else if (msg.role === 'warn') {
+    row.innerHTML = `<div class="msg-inner"><div class="msg-warn">${msg.content}</div></div>`;
+  } else if (msg.role === 'error') {
+    row.innerHTML = `<div class="msg-inner"><div class="msg-error">${msg.content}</div></div>`;
+  }
+  area.appendChild(row);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function addTypingIndicator() {
+  const id = 'typing_' + Date.now();
+  const area = document.getElementById('msg-area');
+  const row = document.createElement('div');
+  row.className = 'msg-row'; row.id = id;
+  row.innerHTML = `<div class="msg-inner">
+    <div class="assistant-header"><span class="assistant-name">DOSSIER</span></div>
+    <div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span class="typing-label">Analisando documentos…</span></div>
+  </div>`;
+  area.appendChild(row);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  return id;
+}
+
+function removeTypingIndicator(id) {
+  document.getElementById(id)?.remove();
+}
+
+function clearMessages() {
+  messages = [];
+  const area = document.getElementById('msg-area');
+  const rows = area.querySelectorAll('.msg-row');
+  rows.forEach(r => r.remove());
+  document.getElementById('welcome').style.display = '';
+  document.getElementById('clear-btn').style.display = 'none';
+}
+
+// ── MARKDOWN ──────────────────────────────────────
+function renderMd(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li style="list-style-type:decimal">$1</li>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/(<li[^>]*>[\s\S]*?<\/li>(\n|$))+/g, '<ul>$&</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── INIT ──────────────────────────────────────────
+updateStats();
+document.getElementById('query-input').addEventListener('input', function() {
+  document.getElementById('send-btn').disabled = !this.value.trim() || loading;
+});
+document.getElementById('sidebar-toggle-btn').style.display = 'none';
+
+// Close modals on overlay click
+document.getElementById('paste-modal').addEventListener('click', function(e) { if (e.target === this) closePasteModal(); });
+document.getElementById('settings-modal').addEventListener('click', function(e) { if (e.target === this) closeSettings(); });
+
+// Drive search on Enter
+document.getElementById('drive-search-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchDriveFiles(); });
+</script>
+</body>
+</html>
